@@ -2,8 +2,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb/stb_image.h"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
@@ -249,16 +247,6 @@ private:
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
 
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-
-	VkImageView textureImageView;
-	VkSampler textureSampler;
-
-	VkImage depthImage;
-	VkDeviceMemory depthImageMemory;
-	VkImageView depthImageView;
-
 	uint32_t currentFrame = 0;
 
 	void InitWindow()
@@ -287,10 +275,6 @@ private:
 		CreateGraphicsPipeline();
 		CreateFramebuffers();
 		CreateCommandPool();
-		CreateDepthResources();
-		CreateTextureImage();
-		CreateTextureImageView();
-		CreateTextureSampler();
 		CreateVertexBuffer();
 		CreateIndexBuffer();
 		CreateUniformBuffers();
@@ -314,12 +298,6 @@ private:
 	void Cleanup()
 	{
 		CleanupSwapChain();
-
-		vkDestroySampler(device, textureSampler, nullptr);
-		vkDestroyImageView(device, textureImageView, nullptr);
-
-		vkDestroyImage(device, textureImage, nullptr);
-		vkFreeMemory(device, textureImageMemory, nullptr);
 
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -1441,12 +1419,7 @@ private:
 			bufferInfo.offset = 0;
 			bufferInfo.range = sizeof(UniformBufferObject);
 
-			VkDescriptorImageInfo imageInfo{};
-			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			imageInfo.imageView = textureImageView;
-			imageInfo.sampler = textureSampler;
-
-			std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+			std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrites[0].dstSet = descriptorSets[i];
 			descriptorWrites[0].dstBinding = 0;
@@ -1455,44 +1428,8 @@ private:
 			descriptorWrites[0].descriptorCount = 1;
 			descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-			descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[1].dstSet = descriptorSets[i];
-			descriptorWrites[1].dstBinding = 1;
-			descriptorWrites[1].dstArrayElement = 0;
-			descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[1].descriptorCount = 1;
-			descriptorWrites[1].pImageInfo = &imageInfo;
-
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}
-	}
-
-	void CreateTextureImage()
-	{
-		int width, height, channels;
-		stbi_uc* pixels = stbi_load("test2.png", &width, &height, &channels, STBI_rgb_alpha);
-		// PNG img = ReadPng("test2.png");
-		VkDeviceSize imageSize = width * height * 4;
-
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-
-		CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-		
-		void* data;
-		vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-		memcpy(data, pixels, static_cast<size_t>(imageSize));
-		vkUnmapMemory(device, stagingBufferMemory);
-
-		free(pixels);
-
-		CreateImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
-		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		CopyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
 	}
 
 	VkCommandBuffer BeginSingleTimeCommands()
@@ -1646,11 +1583,6 @@ private:
 		EndSingleTimeCommands(commandBuffer);
 	}
 
-	void CreateTextureImageView()
-	{
-		textureImageView = CreateImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-	}
-
 	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
 	{
 		VkImageViewCreateInfo viewInfo{};
@@ -1676,47 +1608,6 @@ private:
 		}
 
 		return imageView;
-	}
-
-	void CreateTextureSampler()
-	{
-		VkSamplerCreateInfo samplerInfo{};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;		
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-		samplerInfo.anisotropyEnable = VK_TRUE;
-
-		VkPhysicalDeviceProperties properties{};
-		vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-
-		samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerInfo.mipLodBias = 0.0f;
-		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = 0.0f;
-
-		if(vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create texture sampler");
-		}
-	}
-
-	void CreateDepthResources()
-	{
-		VkFormat depthFormat = FindDepthFormat();
-		CreateImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-		depthImageView = CreateImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}
 
 	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
