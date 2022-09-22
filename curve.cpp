@@ -78,39 +78,9 @@ struct Vector
 
 
 Vector CreatePointsFromCurve(std::vector<Vector> weights, double distance);
-std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double accuracy, int numPoints);
+std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double epsilon, int numPoints);
 std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, int numControls);
 double CalculateError(std::vector<Vector> samplePoints, std::vector<Vector> testCurve);
-
-// int main(int argc, char** argv)
-// {
-//     std::vector<Vector> controlPointsOriginal;
-//     for(int i = 1; i < argc; i+=2)
-//     {
-//         controlPointsOriginal.push_back(Vector(std::stod(argv[i]), std::stod(argv[i + 1])));
-//     }
-
-//     std::cout << controlPointsOriginal.size() << std::endl;
-
-//     std::vector<Vector> points;
-//     for(double i = 0; i < 1; i += 0.0001)
-//     {
-//         Vector point = CreatePointsFromCurve(controlPointsOriginal, i);
-//         // std::cout << i << std::endl;
-//         points.push_back(point);
-//     }
-
-//     std::cout << "Generated " << points.size() << " points" << std::endl;
-//     std::vector<Vector> controlPoints = BezierCurveFromPoints(points, 1, 11);//BezierCurveFromPoints(points, 1);
-
-//     for(int i = 0; i < controlPoints.size(); i++)
-//     {
-//         std::cout << controlPoints[i] << std::endl;
-//     }
-
-//     std::cout << CalculateError(points, controlPoints) << std::endl;
-//     return 0;
-// }
 
 Vector CreatePointsFromCurve(std::vector<Vector> weights, double t)
 {
@@ -132,38 +102,15 @@ Vector CreatePointsFromCurve(std::vector<Vector> weights, double t)
     }
 
     return result;
-    
-    // for(int i = 0; i < n; i++)
-    // {
-    //     std::cout << i << " " << n << " " << (i < n )<< std::endl;
-    //     result += weights[i] * pow(1 - t, n - i) * pow(t, i);
-    // }
-    // if(weights.size() == 2)
-    // {
-    //     return weights[0] * (1 - t) + weights[1]  * t;
-    // }
-    // else
-    // {
-    //     std::vector<Vector> start;
-    //     std::vector<Vector> end;
-    //     for(int i = 0; i < weights.size() - 1; i++)
-    //     {
-    //         start.push_back(weights[i]);
-    //         end.push_back(weights[i + 1]);
-    //     }
-
-    //     Vector firstHalf = CreatePointsFromCurve(start, t);
-    //     Vector secondHalf = CreatePointsFromCurve(end, t);
-    //     return firstHalf + (secondHalf - firstHalf) * t;
-    // }
 }
 
-std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double accuracy, int numPoints)
+std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double epsilon, int numPoints)
 {
     std::vector<Vector> controlPoints;
     double error;
     controlPoints = BezierCurveFromPoints(points, numPoints);
     error = CalculateError(points, controlPoints);
+    double prevError = error + 1;
     std::cout << numPoints << " points gave an error of: " << error << std::endl;
     int it = 0;
 
@@ -172,8 +119,9 @@ std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double acc
     Vector prevDir = Vector(0, 0);
     double prevInd = -1;
 
-    while(error > accuracy)
+    while(prevError - error > epsilon)
     {
+        prevError = error;
         Vector direction;
         int index;
         double newBest = error;
@@ -204,11 +152,12 @@ std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, double acc
         controlPoints[index] += direction * scale;
 
         error = CalculateError(points, controlPoints);
-        std::cout << "Moved point " << index << " by " << direction * scale << "\n" 
-                  << "After iteration " << it << " error is " << error << std::endl;
+        // std::cout << "Moved point " << index << " by " << direction * scale << "\n" 
+        //           << "After iteration " << it << " error is " << error << std::endl;
         prevDir = direction;
         prevInd = index;
         it++;
+        // std::cout << error << " " << prevError << " " << epsilon  << " " << prevError - error << std::endl;
     }
 
     return controlPoints;
@@ -259,20 +208,6 @@ std::vector<Vector> BezierCurveFromPoints(std::vector<Vector> points, int numCon
     controlPoints.push_back(controlPoints1[0]);
     for(int i = 1; i < numControls - 1; i++)
     {
-        // if(i < numControls/2)
-        // {
-        //     controlPoints.push_back(controlPoints1[i]);
-        // }
-        // else if(i > numControls/2)
-        // {
-        //     controlPoints.push_back(controlPoints2[i - 1]);
-        // }
-        // else
-        // {
-        //     controlPoints.push_back((controlPoints1[i] + controlPoints2[i - 1])/2);
-        //     // controlPoints.push_back(controlPoints1[i]);
-        //     // controlPoints.push_back(controlPoints2[i - 1]);
-        // }
         controlPoints.push_back((controlPoints1[i] * (1-(double)i/(numControls - 1))) + (controlPoints2[i - 1] * (double)i/(numControls - 1)));
     }
     controlPoints.push_back(controlPoints2[controlPoints2.size() - 1]);

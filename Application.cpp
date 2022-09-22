@@ -6,7 +6,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <libpng16/png.h>
 
 #include <iostream>
 #include <fstream>
@@ -42,20 +41,6 @@ const bool enableValidationLayers = false;
 #else
 const bool enableValidationLayers = true;
 #endif
-
-struct PNG
-{
-	int width;
-	int height;
-	png_byte colorType;
-	png_byte bitDepth;
-
-	png_structp pPNG;
-	png_infop pInfo;
-
-	int numPasses;
-	png_bytep* pRows;
-};
 
 struct Vertex
 {
@@ -97,48 +82,6 @@ struct Vertex
 
 std::vector<Vertex> verts;
 std::vector<uint32_t> indices;
-
-PNG ReadPng(char* fileName)
-{
-	PNG png;
-	char header[8];
-
-	FILE *pFile = fopen(fileName, "rb");
-	fread(header, 1, 8, pFile);
-
-	png.pPNG = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	png.pInfo = png_create_info_struct(png.pPNG);
-	setjmp(png_jmpbuf(png.pPNG));
-
-	png_init_io(png.pPNG, pFile);
-	png_set_sig_bytes(png.pPNG, 8);
-
-	png_read_info(png.pPNG, png.pInfo);
-
-	png.width = png_get_image_width(png.pPNG, png.pInfo);
-	png.height = png_get_image_height(png.pPNG, png.pInfo);
-	png.colorType = png_get_color_type(png.pPNG, png.pInfo);
-	png.bitDepth = png_get_bit_depth(png.pPNG, png.pInfo);
-	if (png.colorType == PNG_COLOR_TYPE_RGB)
-	{
-		png_set_filler(png.pPNG, 0xff, PNG_FILLER_AFTER);
-	}
-	png.numPasses = png_set_interlace_handling(png.pPNG);
-	png_read_update_info(png.pPNG, png.pInfo);
-
-	setjmp(png_jmpbuf(png.pPNG));
-
-	png.pRows = (png_bytep*) malloc(sizeof(png_bytep) * png.height);
-
-	for(int i = 0; i < png.height; i++)
-	{
-		png.pRows[i] = (png_byte*) malloc(png_get_rowbytes(png.pPNG, png.pInfo));
-	}
-
-	png_read_image(png.pPNG, png.pRows);
-	fclose(pFile);
-	return png;
-}
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkDebugUtilsMessengerEXT *pDebugMessenger)
 {
